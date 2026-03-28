@@ -5,7 +5,11 @@ load_dotenv()
 
 # ── API Keys ──────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-TAVILY_API_KEY    = os.getenv("TAVILY_API_KEY")
+GROQ_API_KEY      = os.getenv("GROQ_API_KEY")
+SERP_API_KEY      = os.getenv("SERPAPI_API_KEY")
+GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY")
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "mindful-ship-232907")
+TAVILY_API_KEY      = os.getenv("TAVILY_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -43,4 +47,4 @@ JOB_SEARCH_QUERIES = [
 DB_PATH = "memory/jobs.db"
 
 # ── Scoring ───────────────────────────────────────────────
-SCORE_THRESHOLD = 6   # jobs below this are auto-discarded silently
+SCORE_THRESHOLD = 7   # jobs below this are auto-discarded silently

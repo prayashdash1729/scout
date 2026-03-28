@@ -1,13 +1,12 @@
 """
-Module 1: Search job boards using Tavily.
+Module 1: Search job boards using SerpAPI (Google Search).
 Returns a list of raw job dicts for the scorer to evaluate.
 """
 
-from tavily import TavilyClient
-from config import TAVILY_API_KEY, CANDIDATE, JOB_SEARCH_QUERIES
+from serpapi import GoogleSearch
+from config import SERP_API_KEY, CANDIDATE, JOB_SEARCH_QUERIES
 from memory.db import job_exists
 
-client = TavilyClient(api_key=TAVILY_API_KEY)
 
 def search_jobs() -> list[dict]:
     """
@@ -24,26 +23,28 @@ def search_jobs() -> list[dict]:
                 print(f"[Search] {query}")
 
                 try:
-                    results = client.search(
-                        query=query,
-                        max_results=5,
-                        search_depth="advanced",  # more thorough
-                        include_answer=False,
-                    )
+                    params = {
+                        "q": query,
+                        "api_key": SERP_API_KEY,
+                        "num": 5,
+                        "hl": "en",
+                        "gl": "in",
+                    }
+                    search  = GoogleSearch(params)
+                    results = search.get_dict()
 
-                    for r in results.get("results", []):
-                        url = r.get("url", "")
+                    for r in results.get("organic_results", []):
+                        url = r.get("link", "")
 
-                        # Skip if already seen in this run or in DB
                         if url in seen_urls or job_exists(url):
                             continue
 
                         seen_urls.add(url)
                         raw_results.append({
-                            "title":   r.get("title", ""),
-                            "url":     url,
-                            "snippet": r.get("content", ""),
-                            "source":  _detect_source(url),
+                            "title":      r.get("title", ""),
+                            "url":        url,
+                            "snippet":    r.get("snippet", ""),
+                            "source":     _detect_source(url),
                             "role_query": role,
                             "city_query": city,
                         })
@@ -58,9 +59,9 @@ def search_jobs() -> list[dict]:
 
 def _detect_source(url: str) -> str:
     """Infer which job board a URL came from."""
-    if "linkedin.com"   in url: return "linkedin"
-    if "naukri.com"     in url: return "naukri"
-    if "instahyre.com"  in url: return "instahyre"
-    if "wellfound.com"  in url: return "wellfound"
-    if "indeed.com"     in url: return "indeed"
+    if "linkedin.com"  in url: return "linkedin"
+    if "naukri.com"    in url: return "naukri"
+    if "instahyre.com" in url: return "instahyre"
+    if "wellfound.com" in url: return "wellfound"
+    if "indeed.com"    in url: return "indeed"
     return "other"

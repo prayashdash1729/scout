@@ -6,6 +6,9 @@
 cv/
 *.pdf
 
+# Service account credentials — NEVER commit
+credentials/
+
 # Database — local state, not for repo
 memory/*.db
 
@@ -22,3 +25,5 @@ env/
 
 # Mac
 .DS_Store
+
+temp.ipynb

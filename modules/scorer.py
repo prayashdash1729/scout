@@ -1,14 +1,16 @@
 """
 Module 2: Score each job listing against the candidate's CV.
-Uses Groq (free) instead of Claude API.
+Uses Gemini via Vertex AI service account credentials.
 """
 
 import json
 import PyPDF2
-from groq import Groq
-from config import CANDIDATE, SCORE_THRESHOLD
+import vertexai
+from vertexai.generative_models import GenerativeModel
+from config import CANDIDATE, SCORE_THRESHOLD, GOOGLE_CLOUD_PROJECT
 
-_client = Groq()   # reads GROQ_API_KEY from env automatically
+vertexai.init(project=GOOGLE_CLOUD_PROJECT, location="us-central1")
+_model   = GenerativeModel("gemini-2.0-flash")
 _cv_text = None
 
 def _load_cv() -> str:
@@ -61,18 +63,13 @@ Return a JSON object with ONLY these fields. No markdown, no explanation, just r
 }}
 """
     try:
-        resp = _client.chat.completions.create(
-            model="llama-3.3-70b-versatile",  # or "mixtral-8x7b-32768"
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=500,
-            temperature=0.1,   # low temp = more consistent JSON
-        )
-        text = resp.choices[0].message.content.strip()
+        resp = _model.generate_content(prompt)
+        text = resp.text.strip()
         text = text.replace("```json", "").replace("```", "").strip()
         return json.loads(text)
 
     except Exception as e:
-        print(f"[Score] Error: {e}")
+        print(f"[Score] Error scoring job: {e}")
         return {
             "score": 0, "reason": f"Scoring failed: {e}",
             "title": job.get("title", ""), "company": "",
