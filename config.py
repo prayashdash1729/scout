@@ -14,20 +14,36 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 
 # ── Your Profile ──────────────────────────────────────────
+# CANDIDATE = {
+#     "name": "Prayash Dash",
+#     "cv_path": "cv/resume.pdf",
+#     "target_roles": [
+#         "Data Scientist", "ML Engineer", "Junior Data Scientist",
+#         "Machine Learning Engineer", "AI Engineer", "NLP Engineer"
+#         # TODO: add more role variations
+#     ],
+#     "target_cities": ["Bangalore", "Gurgaon", "Noida"],
+#     "experience_years": 1,
+#     "skills": [
+#         "Python", "Machine Learning", "Deep Learning", "NLP",
+#         "TensorFlow", "PyTorch", "SQL", "pandas", "scikit-learn"
+#         # TODO: add skills
+#     ],
+#     "min_score_to_notify": 7, # TODO: how to decide this?
+# }
+
 CANDIDATE = {
-    "name": "Prayash Dash",
+    "name": "Vedant Pradhan",
     "cv_path": "cv/resume.pdf",
     "target_roles": [
-        "Data Scientist", "ML Engineer", "Junior Data Scientist",
-        "Machine Learning Engineer", "AI Engineer", "NLP Engineer"
-        # TODO: add more role variations
+        "AI Engineer", "Machine Learning Engineer", "Data Scientist"
     ],
-    "target_cities": ["Bangalore", "Gurgaon", "Noida"],
-    "experience_years": 1,
+    "target_cities": ["Bangalore", "Gurgaon", "Noida", "Pune"],
+    "experience_years": 0,
     "skills": [
         "Python", "Machine Learning", "Deep Learning", "NLP",
-        "TensorFlow", "PyTorch", "SQL", "pandas", "scikit-learn"
-        # TODO: add skills
+        "TensorFlow", "PyTorch", "SQL", "pandas", "scikit-learn",
+        "LangGraph", "LangChain", "LangSmith", "FastAPI"
     ],
     "min_score_to_notify": 7, # TODO: how to decide this?
 }
@@ -40,7 +56,7 @@ JOB_SEARCH_QUERIES = [
     "{role} jobs in {city} site:instahyre.com",
     "{role} jobs in {city} site:naukri.com",
     "{role} jobs in {city} site:wellfound.com",
-    "{role} jobs {city} India 2024",
+    "{role} jobs {city} India 2026",
 ]
 
 # ── Memory ────────────────────────────────────────────────
