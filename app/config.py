@@ -32,6 +32,18 @@ def _split_ids(raw: str | None) -> list[int]:
     return out
 
 
+def _split_usernames(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    out: list[str] = []
+    for part in raw.replace(";", ",").split(","):
+        # Usernames are case-insensitive; normalise and drop a leading '@'.
+        part = part.strip().lstrip("@").lower()
+        if part:
+            out.append(part)
+    return out
+
+
 class Settings(BaseModel):
     # ── Telegram ──────────────────────────────────────────
     telegram_bot_token: str
@@ -54,6 +66,7 @@ class Settings(BaseModel):
 
     # ── Access control & limits ───────────────────────────
     allowed_telegram_ids: list[int] = Field(default_factory=list)
+    allowed_telegram_usernames: list[str] = Field(default_factory=list)
     score_threshold: int = 7
     hunt_cooldown_minutes: int = 30
     max_hunts_per_day: int = 10
@@ -90,7 +103,7 @@ class Settings(BaseModel):
 
     @property
     def access_is_restricted(self) -> bool:
-        return len(self.allowed_telegram_ids) > 0
+        return bool(self.allowed_telegram_ids or self.allowed_telegram_usernames)
 
 
 def _load() -> Settings:
@@ -111,6 +124,9 @@ def _load() -> Settings:
             "postgresql+asyncpg://jobpilot:jobpilot@localhost:5432/jobpilot",
         ),
         allowed_telegram_ids=_split_ids(os.getenv("ALLOWED_TELEGRAM_IDS")),
+        allowed_telegram_usernames=_split_usernames(
+            os.getenv("ALLOWED_TELEGRAM_USERNAMES")
+        ),
         score_threshold=int(os.getenv("SCORE_THRESHOLD", "7")),
         hunt_cooldown_minutes=int(os.getenv("HUNT_COOLDOWN_MINUTES", "30")),
         max_hunts_per_day=int(os.getenv("MAX_HUNTS_PER_DAY", "10")),

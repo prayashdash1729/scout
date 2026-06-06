@@ -71,9 +71,16 @@ def build_application() -> Application:
 def main() -> None:
     setup_logging()
     if settings.access_is_restricted:
-        log.info("Access restricted to %d Telegram id(s).", len(settings.allowed_telegram_ids))
+        log.info(
+            "Access restricted to %d id(s) + %d username(s).",
+            len(settings.allowed_telegram_ids),
+            len(settings.allowed_telegram_usernames),
+        )
     else:
-        log.info("Access is OPEN (multi-user). Set ALLOWED_TELEGRAM_IDS to lock down.")
+        log.info(
+            "Access is OPEN (multi-user). Set ALLOWED_TELEGRAM_IDS or "
+            "ALLOWED_TELEGRAM_USERNAMES to lock down."
+        )
 
     application = build_application()
     # drop_pending_updates: don't replay a backlog of stale commands after downtime.

@@ -44,9 +44,9 @@ def _is_pdf(message) -> bool:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     tg = update.effective_user
-    if tg is None or not is_allowed(tg.id):
+    if tg is None or not is_allowed(tg.id, tg.username):
         await update.effective_message.reply_text(
-            "🔒 This bot is private. Ask the owner to add your Telegram ID."
+            "🔒 This bot is private. Ask the owner to add your Telegram username or ID."
         )
         return ConversationHandler.END
 

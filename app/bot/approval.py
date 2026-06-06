@@ -27,7 +27,7 @@ _ACTIONS = {
 async def on_decision(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     tg = update.effective_user
-    if tg is None or not is_allowed(tg.id):
+    if tg is None or not is_allowed(tg.id, tg.username):
         await query.answer("Not authorized.", show_alert=True)
         return
 
