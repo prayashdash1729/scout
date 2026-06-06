@@ -1,79 +1,100 @@
 # jobpilot — Project Context for Claude
 
 ## What This Project Is
-An autonomous job search agent that automates two workflows:
-1. **Startup Hunter** — finds recently funded Indian startups, checks if they're hiring for junior DS/ML roles, finds the hiring contact, drafts and sends cold emails
-2. **Job Board Hunter** — searches LinkedIn, Naukri, Instahyre, Wellfound, Indeed for junior DS/ML roles in Bangalore/Gurgaon/Noida, scores them against the candidate's CV, applies, then finds and messages hiring managers on LinkedIn
+A multi-user, Telegram-driven job-hunting agent. A user onboards by chatting
+with the bot (name, CV upload, target roles/cities, experience); the bot
+extracts skills from the CV and suggests roles. On `/hunt`, the bot searches job
+boards, renders each page, scores it against the user's CV with Gemini, dedups
+against the DB, and pushes new matches as Telegram approval cards
+(Persist / Discard). Profiles + jobs persist in Postgres across restarts.
 
-## Candidate Profile
-- Targeting: Junior Data Scientist / ML Engineer / AI Engineer roles
-- Cities: Bangalore, Gurgaon, Noida
-- Experience: fresher/junior level
-- Stack: Python, ML, Deep Learning, NLP, PyTorch, TensorFlow, scikit-learn, SQL, pandas
+> The pre-v1 one-shot pipeline (`main.py`, `config.py`, `modules/`,
+> `memory/db.py`, `test_modules.py`) is **superseded** by the `app/` package and
+> kept only for reference. `.dockerignore` excludes it from the image.
 
-## Architecture
+## Architecture (`app/` package)
 ```
-main.py                  → entry point, runs the full agent loop
-config.py                → all settings, preferences, API keys (from .env)
-memory/db.py             → SQLite — tracks jobs, statuses, agent memory
-modules/searcher.py      → Module 1: search job boards via Tavily
-modules/scorer.py        → Module 2: score jobs against CV using Gemini API
-modules/notifier.py      → Module 3: Telegram HITL (not built yet)
-modules/applier.py       → Module 4: Playwright form filler (not built yet)
-modules/outreach.py      → Module 5: LinkedIn message drafter (not built yet)
-modules/tracker.py       → Module 6: Google Sheets logger (not built yet)
+app/__main__.py          → `python -m app` → starts the bot (Docker CMD)
+app/config.py            → Settings (Pydantic) loaded/validated from .env
+app/enums.py             → JobStatus, JobSource, ConvState
+app/schemas.py           → Pydantic: CVInsights, JobEvaluation (Gemini I/O), SearchHit
+app/logging_conf.py      → logging setup
+
+app/db/base.py           → async engine + session (SQLAlchemy 2.0 + asyncpg), init_models()
+app/db/models.py         → ORM: User (PK = telegram id), Job (unique per user_id+job_key)
+app/db/repo.py           → all async DB access (upsert, dedup, rate-limit, status)
+
+app/services/gemini.py   → google.genai structured-output helper (Pydantic response_schema)
+app/services/cv.py       → PDF text extract (PyPDF2) + CV→skills/roles via Gemini
+app/services/jina.py     → search (s.jina.ai) + read (r.jina.ai)
+app/services/scorer.py   → score a page vs CV → JobEvaluation
+app/services/hunt.py     → orchestrates search→read→score→dedup→persist (run_hunt)
+
+app/bot/app.py           → builds Application, registers handlers, run_polling
+app/bot/access.py        → allowlist gate (ALLOWED_TELEGRAM_IDS)
+app/bot/onboarding.py    → /start ConversationHandler (name→CV→roles→cities→exp)
+app/bot/profile.py       → /me, /setroles, /setcities, /setexp, /setname, /editcv, /help
+app/bot/hunt_cmd.py      → /hunt (rate-limited, sends approval cards)
+app/bot/approval.py      → Persist/Discard inline-button callbacks
+app/bot/keyboards.py     → inline keyboards + callback_data tokens
+app/bot/texts.py         → user-facing message templates
+
+Dockerfile, docker-compose.yml → bot + Postgres (named volume `pgdata`), local run
 ```
+
+## Candidate Profile (default test user)
+- Targeting: Junior Data Scientist / ML / AI Engineer roles
+- Cities: Bangalore, Gurgaon, Noida, Pune
+- Experience: fresher/junior; Stack: Python, ML/DL, NLP, PyTorch, TF, SQL, pandas, LangGraph
 
 ## Current Build Status
-- [x] Project scaffold created
-- [x] config.py — candidate profile + job board query templates
-- [x] memory/db.py — SQLite with jobs + agent_memory tables
-- [x] modules/searcher.py — Tavily-based multi-board job search
-- [x] modules/scorer.py — Gemini-powered CV vs job scoring (returns score/10 + metadata)
-- [x] main.py — wires search → score → save to DB
-- [ ] Module 3: Telegram notifier + HITL approval loop
-- [ ] Module 4: Playwright job applier
-- [ ] Module 5: LinkedIn outreach drafter
-- [ ] Module 6: Google Sheets tracker
-- [ ] Startup Hunter workflow (separate from job board hunter)
+- [x] Telegram onboarding (CV upload + Gemini skill/role extraction)
+- [x] Multi-user profiles in Postgres; `/start` returns existing profile
+- [x] Profile-edit commands (`/setroles`, `/setcities`, `/setexp`, `/setname`, `/editcv`)
+- [x] `/hunt`: Jina search → Jina reader → Gemini scoring → dedup → approval cards
+- [x] Persist/Discard approval loop updates job status (so jobs aren't re-shown)
+- [x] Access allowlist + per-user hunt cooldown/daily-cap + per-hunt link ceiling
+- [x] Docker Compose (bot + Postgres with persistent volume)
+- [ ] Auto-apply (Playwright) — future
+- [ ] LinkedIn outreach drafting — future
+- [ ] Startup Hunter workflow — future
 
 ## Key Design Decisions
-- **SerpAPI** (misc_key) for web search via Google Search organic results
-- **Gemini 2.0 Flash** (google_api_key) for all LLM calls (scoring, drafting, reasoning)
-- **SQLite** for local memory/state — job lifecycle: seen → approved → rejected → applied → messaged
-- **Telegram bot** for human-in-the-loop (HITL) — agent pauses and notifies, waits for approval
-- **Playwright** for browser automation (form filling, LinkedIn)
-- **Google Sheets** for tracking dashboard
-- LinkedIn automation is kept human-in-the-loop to avoid account bans — agent drafts, user sends
-- `.env` holds all secrets — never committed to git
-- `cv/` folder holds resume.pdf — never committed to git
+- **google.genai + GEMINI_API_KEY** for all LLM calls. Structured output via
+  Pydantic `response_schema` — no markdown-fence stripping. Model: gemini-2.0-flash.
+- **Jina** for both search (`s.jina.ai`, Google-backed) and page rendering
+  (`r.jina.ai`). Search results often include page content already, so we reuse
+  it and only call the reader as a fallback — saves API quota.
+- **Postgres** (async SQLAlchemy + asyncpg) is the source of truth. Named Docker
+  volume `pgdata` => data survives restarts/rebuilds.
+- **Job lifecycle**: pending → persisted | discarded. Dedup key = `companyslug|jobid`
+  (`job_key`), unique per user.
+- **HITL**: the bot surfaces jobs as inline Persist/Discard cards; nothing is
+  auto-applied. Long-polling => no public URL/ports needed (runs locally in Docker).
+- **Abuse control**: optional `ALLOWED_TELEGRAM_IDS` allowlist (empty = open),
+  per-user cooldown + daily cap, and `MAX_LINKS_PER_HUNT` ceiling.
+- `.env` holds all secrets; `cv/` resumes — never committed.
 
 ## Tech Stack
-- Python 3.11+
-- google-generativeai (Gemini 2.0 Flash)
-- google-search-results (SerpAPI)
-- langgraph (for agent graph, being introduced gradually)
-- playwright
-- gspread + google-auth
-- python-telegram-bot
-- PyPDF2
-- sqlite3 (built-in)
-- python-dotenv
+- Python 3.12
+- python-telegram-bot 22.x (async)
+- google-genai (Gemini 2.0 Flash, structured output)
+- Jina (search + reader) over httpx
+- SQLAlchemy 2.0 (async) + asyncpg + Postgres 16
+- Pydantic v2, PyPDF2, python-dotenv
+- Docker + Docker Compose
 
 ## Key Files NOT in Repo (local only)
-- `.env` — all API keys
-- `cv/resume.pdf` — candidate's CV
+- `.env` — all API keys (see `.env.example` for the required new keys)
+- `cv/*.pdf` — resumes
 
 ## Conventions
-- Each module is independently runnable for testing
-- All LLM calls use structured JSON output — strip markdown fences before parsing
-- DB is the source of truth for job status
-- When in doubt, write to DB and notify via Telegram rather than auto-acting
-- `agent_memory` table is a free-form key-value store for persistent agent state
+- All LLM calls use Gemini structured output (Pydantic `response_schema`).
+- All DB access goes through `app/db/repo.py`; never open sessions elsewhere.
+- Blocking work (genai SDK, PyPDF2) is wrapped in `asyncio.to_thread`; Jina/DB are async.
+- Postgres is the source of truth for profiles and job status.
 
-## Next Immediate Step
-Build `modules/notifier.py` — Telegram bot that:
-1. Reads all `status = 'seen'` jobs from DB
-2. Sends each to the user as a Telegram message with score + reason + URL
-3. User replies approve/reject
-4. Agent updates DB status and continues
+## Running
+- Local Docker: fill the new keys in `.env` (see `.env.example`), then
+  `docker compose up -d --build`. Stop the bot with `docker compose stop bot`.
+- Requires a valid `GEMINI_API_KEY` (the previous key expired) and `JINA_API_KEY`.

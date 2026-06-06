@@ -1,0 +1,41 @@
+# jobpilot — local Docker stack: bot + Postgres
+# Start:  docker compose up -d --build
+# Stop:   docker compose stop bot      (switch the bot off, keep DB + data)
+# Wipe:   docker compose down -v       (also deletes the pgdata volume)
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jobpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jobpilot}
+      POSTGRES_DB: ${POSTGRES_DB:-jobpilot}
+    volumes:
+      # Named volume => data survives restarts / rebuilds / `compose down`
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jobpilot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Overrides any DATABASE_URL in .env so the bot talks to the db service.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-jobpilot}:${POSTGRES_PASSWORD:-jobpilot}@db:5432/${POSTGRES_DB:-jobpilot}
+    volumes:
+      # Mount the Vertex service-account key read-only (kept out of the image).
+      # GOOGLE_APPLICATION_CREDENTIALS in .env is relative (gemini_keys/...), which
+      # resolves to /app/gemini_keys/... inside the container (WORKDIR=/app).
+      - ./gemini_keys:/app/gemini_keys:ro
+
+volumes:
+  pgdata:
