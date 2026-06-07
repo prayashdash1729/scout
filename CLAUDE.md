@@ -8,9 +8,9 @@ boards, renders each page, scores it against the user's CV with Gemini, dedups
 against the DB, and pushes new matches as Telegram approval cards
 (Persist / Discard). Profiles + jobs persist in Postgres across restarts.
 
-> The pre-v1 one-shot pipeline (`main.py`, `config.py`, `modules/`,
-> `memory/db.py`, `test_modules.py`) is **superseded** by the `app/` package and
-> kept only for reference. `.dockerignore` excludes it from the image.
+> The pre-v1 one-shot pipeline (root `main.py`/`config.py`, `modules/`,
+> `memory/db.py`, `test_modules.py`) has been **removed** — all logic now lives
+> in the `app/` package.
 
 ## Architecture (`app/` package)
 ```

@@ -1,14 +1,10 @@
 .venv/
 __pycache__/
 *.pyc
-memory/
 cv/
 *.db
 .git/
 .gitignore
 *.md
-legacy_*
-test_modules.py
-main.py
-config.py
-modules/
+credentials/
+gemini_keys/
