@@ -42,7 +42,8 @@ def profile_summary(user: User) -> str:
         f"• Skills: {_esc(skills)}\n"
         f"• CV: {cv_state}\n\n"
         f"Edit anything with /setroles, /setcities, /setexp, /setname, /editcv.\n"
-        f"Run /hunt when you're ready."
+        f"Pick job sources with /sources, then run /hunt when you're ready.\n"
+        f"See all commands with /help."
     )
 
 
