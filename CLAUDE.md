@@ -24,11 +24,14 @@ app/db/base.py           → async engine + session (SQLAlchemy 2.0 + asyncpg), 
 app/db/models.py         → ORM: User (PK = telegram id), Job (unique per user_id+job_key)
 app/db/repo.py           → all async DB access (upsert, dedup, rate-limit, status)
 
-app/services/gemini.py   → google.genai structured-output helper (Pydantic response_schema)
+app/services/gemini.py   → google.genai structured-output helper (Pydantic response_schema; 429 backoff)
 app/services/cv.py       → PDF text extract (PyPDF2) + CV→skills/roles via Gemini
-app/services/jina.py     → search (s.jina.ai) + read (r.jina.ai)
+app/services/fetch.py    → shared HTTP getter: direct → ScraperAPI fallback (cloud egress)
+app/services/linkedin.py → LinkedIn guest jobs API: search (filters+pagination) + JD fetch
+app/services/naukri.py   → Naukri source (DISABLED — anti-bot blocks all no-login paths)
+app/services/jina.py     → Google/Jina search (s.jina.ai) + read (r.jina.ai)
 app/services/scorer.py   → score a page vs CV → JobEvaluation
-app/services/hunt.py     → orchestrates search→read→score→dedup→persist (run_hunt)
+app/services/hunt.py     → multi-source orchestration: gather→dedup→fetch JD→score→persist
 
 app/bot/app.py           → builds Application, registers handlers, run_polling
 app/bot/access.py        → allowlist gate (ALLOWED_TELEGRAM_IDS)
@@ -62,9 +65,17 @@ Dockerfile, docker-compose.yml → bot + Postgres (named volume `pgdata`), local
 ## Key Design Decisions
 - **google.genai + GEMINI_API_KEY** for all LLM calls. Structured output via
   Pydantic `response_schema` — no markdown-fence stripping. Model: gemini-2.0-flash.
-- **Jina** for both search (`s.jina.ai`, Google-backed) and page rendering
-  (`r.jina.ai`). Search results often include page content already, so we reuse
-  it and only call the reader as a fallback — saves API quota.
+- **Job sources** (pluggable): **LinkedIn guest API** is primary — the
+  `seeMoreJobPostings/search` endpoint (no login) returns fresh, filtered cards
+  (f_TPR/f_E/f_JT) with a stable job id → `job_key='linkedin|<id>'`, so board jobs
+  dedup before any LLM spend. **Jina/Google** (`s.jina.ai` + `r.jina.ai`) is a
+  supplementary keyword source. **Naukri** is coded but DISABLED (406 recaptcha
+  direct; ScraperAPI refuses it as a protected domain).
+- **ScraperAPI** (`app/services/fetch.py`) is the egress fallback: direct fetch
+  first, then proxy on block/failure — essential once deployed (cloud IPs get
+  blocked by LinkedIn). Configured via `SCRAPER_API_KEY`.
+- **Vertex quota**: `gemini-2.5-flash` 429s easily; the scorer retries with
+  exponential backoff and `HUNT_CONCURRENCY` defaults to 3.
 - **Postgres** (async SQLAlchemy + asyncpg) is the source of truth. Named Docker
   volume `pgdata` => data survives restarts/rebuilds.
 - **Job lifecycle**: pending → persisted | discarded. Dedup key = `companyslug|jobid`

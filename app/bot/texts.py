@@ -7,7 +7,7 @@ import html
 from app.db.models import Job, User
 
 HELP = (
-    "<b>jobpilot</b> — your job-hunting agent\n\n"
+    "<b>Scout</b> — your job-hunting agent\n\n"
     "<b>Commands</b>\n"
     "/start – onboard or review your profile\n"
     "/me – show your saved profile\n"

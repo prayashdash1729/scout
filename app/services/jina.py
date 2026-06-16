@@ -17,7 +17,8 @@ import logging
 import httpx
 
 from app.config import settings
-from app.schemas import SearchHit
+from app.enums import JobSource
+from app.schemas import JobCandidate
 
 log = logging.getLogger(__name__)
 
@@ -37,8 +38,8 @@ def _headers(extra: dict | None = None) -> dict:
     return h
 
 
-async def search(query: str, top_k: int | None = None) -> list[SearchHit]:
-    """Return up to `top_k` search hits for a query. Empty list on failure."""
+async def search(query: str, top_k: int | None = None) -> list[JobCandidate]:
+    """Return up to `top_k` candidates for a query. Empty list on failure."""
     top_k = top_k or settings.search_top_k
     params = {"q": query, "count": str(top_k), "gl": "in", "hl": "en"}
     try:
@@ -51,14 +52,16 @@ async def search(query: str, top_k: int | None = None) -> list[SearchHit]:
         return []
 
     items = data.get("data", []) if isinstance(data, dict) else []
-    hits: list[SearchHit] = []
+    hits: list[JobCandidate] = []
     for item in items[:top_k]:
         url = item.get("url") or item.get("link") or ""
         if not url:
             continue
         hits.append(
-            SearchHit(
+            JobCandidate(
+                source=JobSource.from_url(url).value,
                 url=url,
+                job_key=None,  # derived by Gemini after scoring
                 title=item.get("title", ""),
                 content=item.get("content", "") or "",
             )

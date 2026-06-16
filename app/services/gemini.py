@@ -49,6 +49,9 @@ _client = _build_client()
 
 T = TypeVar("T", bound=BaseModel)
 
+_MAX_RETRIES = 4
+_BACKOFF_BASE = 2.0  # seconds: 2, 4, 8, 16
+
 
 async def generate_structured(
     prompt: str,
@@ -70,7 +73,26 @@ async def generate_structured(
             ),
         )
 
-    resp = await asyncio.to_thread(_call)
+    # Vertex gemini-2.5-flash quota is tight; retry 429/RESOURCE_EXHAUSTED with
+    # exponential backoff so a busy hunt doesn't silently drop jobs.
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            resp = await asyncio.to_thread(_call)
+            break
+        except Exception as e:  # noqa: BLE001
+            msg = str(e)
+            if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "503" in msg:
+                last_exc = e
+                wait = _BACKOFF_BASE * (2 ** attempt)
+                log.warning("Gemini %s — backing off %.1fs (attempt %d/%d)",
+                            "429/quota" if "429" in msg else "transient",
+                            wait, attempt + 1, _MAX_RETRIES)
+                await asyncio.sleep(wait)
+                continue
+            raise
+    else:
+        raise last_exc  # exhausted retries
 
     parsed = getattr(resp, "parsed", None)
     if isinstance(parsed, schema):

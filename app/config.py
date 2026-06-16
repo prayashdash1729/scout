@@ -61,6 +61,19 @@ class Settings(BaseModel):
     # ── Jina (search + reader) ────────────────────────────
     jina_api_key: str
 
+    # ── Job sources ───────────────────────────────────────
+    scraper_api_key: str | None = None
+    fetch_country: str = "in"          # ScraperAPI country_code for geo-routing
+    scraper_first: bool = False        # try ScraperAPI before a direct hit
+    jina_enabled: bool = True
+    linkedin_enabled: bool = True
+    naukri_enabled: bool = False       # blocked by anti-bot; off until viable
+    # LinkedIn guest-API filters (see app/services/linkedin.py)
+    linkedin_tpr: str = "r604800"      # posted within: r86400=24h, r604800=7d
+    linkedin_experience: str = "1,2,3"  # f_E: 1 intern,2 entry,3 associate,...
+    linkedin_job_type: str = "F"        # f_JT: F full-time, C contract, I intern
+    linkedin_pages: int = 2            # pages of 10 cards per role×city query
+
     # ── Database ──────────────────────────────────────────
     database_url: str
 
@@ -73,7 +86,7 @@ class Settings(BaseModel):
     max_links_per_hunt: int = 40
     search_top_k: int = 10
     max_queries_per_hunt: int = 24
-    hunt_concurrency: int = 5
+    hunt_concurrency: int = 3  # keep low: Vertex gemini-2.5-flash quota is tight
 
     @field_validator("database_url")
     @classmethod
@@ -119,6 +132,16 @@ def _load() -> Settings:
             os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         ),
         jina_api_key=os.environ["JINA_API_KEY"],
+        scraper_api_key=os.getenv("SCRAPER_API_KEY") or None,
+        fetch_country=os.getenv("FETCH_COUNTRY", "in"),
+        scraper_first=os.getenv("SCRAPER_FIRST", "false").strip().lower() == "true",
+        jina_enabled=os.getenv("JINA_ENABLED", "true").strip().lower() == "true",
+        linkedin_enabled=os.getenv("LINKEDIN_ENABLED", "true").strip().lower() == "true",
+        naukri_enabled=os.getenv("NAUKRI_ENABLED", "false").strip().lower() == "true",
+        linkedin_tpr=os.getenv("LINKEDIN_TPR", "r604800"),
+        linkedin_experience=os.getenv("LINKEDIN_EXPERIENCE", "1,2,3"),
+        linkedin_job_type=os.getenv("LINKEDIN_JOB_TYPE", "F"),
+        linkedin_pages=int(os.getenv("LINKEDIN_PAGES", "2")),
         database_url=os.getenv(
             "DATABASE_URL",
             "postgresql+asyncpg://jobpilot:jobpilot@localhost:5432/jobpilot",
@@ -133,7 +156,7 @@ def _load() -> Settings:
         max_links_per_hunt=int(os.getenv("MAX_LINKS_PER_HUNT", "40")),
         search_top_k=int(os.getenv("SEARCH_TOP_K", "10")),
         max_queries_per_hunt=int(os.getenv("MAX_QUERIES_PER_HUNT", "24")),
-        hunt_concurrency=int(os.getenv("HUNT_CONCURRENCY", "5")),
+        hunt_concurrency=int(os.getenv("HUNT_CONCURRENCY", "3")),
     )
 
 

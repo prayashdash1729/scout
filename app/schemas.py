@@ -76,9 +76,22 @@ class JobEvaluation(BaseModel):
 
 
 # ── Internal transfer object ──────────────────────────────────────────────
-class SearchHit(BaseModel):
-    """One result from Jina search; `content` may already be populated."""
+class JobCandidate(BaseModel):
+    """
+    A job discovered by a source (LinkedIn / Naukri / Jina) before scoring.
 
+    Board sources (LinkedIn/Naukri) provide a stable `job_key` (e.g.
+    'linkedin|4400723087') and metadata up front, so we can dedup against the DB
+    *before* spending any fetch/LLM calls. Jina results have job_key=None and the
+    key is derived by Gemini after scoring. `content` holds the JD text when the
+    source already has it; otherwise it's fetched lazily before scoring.
+    """
+
+    source: str = "other"
     url: str
+    job_key: Optional[str] = None
     title: str = ""
+    company: str = ""
+    location: str = ""
+    posting_date: Optional[str] = None
     content: str = ""
