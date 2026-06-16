@@ -1,12 +1,12 @@
 """
-Hunt orchestrator: for one user, gather job candidates from every enabled
-source (LinkedIn guest API, Naukri, Jina/Google), dedup, fetch each job's full
-description, score it against the CV with Gemini, dedup against the DB, and
-persist new matches as PENDING.
+Hunt orchestrator: for one user, gather job candidates from the selected sources
+(via the source registry), dedup, fetch each job's full description, score it
+against the CV with Gemini, dedup against the DB, and persist new matches as
+PENDING.
 
-Board sources (LinkedIn/Naukri) hand us a stable job_key up front, so we drop
-already-seen jobs *before* spending any JD-fetch or LLM calls. Jina hits have no
-key until Gemini produces one, so they're deduped after scoring.
+Board sources hand us a stable job_key up front, so we drop already-seen jobs
+*before* spending any JD-fetch or LLM calls. Jina hits have no key until Gemini
+produces one, so they're deduped after scoring.
 
 Returns the freshly-created Job rows; the bot layer pushes them for approval.
 A progress callback lets the bot stream status.
@@ -24,20 +24,10 @@ from app.config import settings
 from app.db import repo
 from app.db.models import Job, User
 from app.enums import JobSource
-from app.schemas import JobCandidate, JobEvaluation
-from app.services import jina, linkedin, naukri, scorer
+from app.schemas import JobCandidate
+from app.services import scorer, sources
 
 log = logging.getLogger(__name__)
-
-# Jina/Google keyword templates (supplementary to the board sources).
-_QUERY_TEMPLATES = [
-    "{role} jobs in {city} {month} {year}",
-    "entry level {role} jobs in {city}",
-    "{role} fresher jobs in {city} {year}",
-    "{role} jobs in {city} site:wellfound.com",
-    "{role} jobs in {city} site:instahyre.com",
-    "{role} jobs in {city}",
-]
 
 ProgressCb = Callable[[str], Awaitable[None]]
 
@@ -54,45 +44,22 @@ class HuntStats:
     by_source: dict = field(default_factory=dict)
 
 
-def build_queries(user: User, now: datetime) -> list[str]:
-    month, year = now.strftime("%B"), str(now.year)
-    queries, seen = [], set()
-    for role in user.target_roles:
-        for city in user.target_cities:
-            for tmpl in _QUERY_TEMPLATES:
-                q = tmpl.format(role=role, city=city, month=month, year=year)
-                if q not in seen:
-                    seen.add(q)
-                    queries.append(q)
-    return queries[: settings.max_queries_per_hunt]
+async def _gather_candidates(
+    user: User, selected: list[sources.SourceAdapter], stats: HuntStats
+) -> list[JobCandidate]:
+    """Fan out across the selected sources concurrently, then dedup."""
+    results = await asyncio.gather(
+        *(s.gather(user) for s in selected), return_exceptions=True
+    )
 
-
-async def _gather_candidates(user: User, now: datetime, stats: HuntStats) -> list[JobCandidate]:
-    """Fan out across all enabled sources concurrently, then dedup."""
-    tasks: list[tuple[str, Awaitable[list[JobCandidate]]]] = []
-
-    if settings.linkedin_enabled:
-        for role in user.target_roles:
-            for city in user.target_cities:
-                tasks.append(("linkedin", linkedin.search(role, city)))
-    if settings.naukri_enabled:
-        for role in user.target_roles:
-            for city in user.target_cities:
-                tasks.append(("naukri", naukri.search(role, city)))
-    if settings.jina_enabled:
-        for q in build_queries(user, now):
-            tasks.append(("jina", jina.search(q)))
-
-    results = await asyncio.gather(*(t[1] for t in tasks), return_exceptions=True)
-
-    # Dedup: by stable job_key when present, else by URL.
     by_key: dict[str, JobCandidate] = {}
-    for (src, _), res in zip(tasks, results):
+    for adapter, res in zip(selected, results):
         if isinstance(res, Exception):
-            log.warning("%s source failed: %s", src, res)
+            log.warning("%s source failed: %s", adapter.name, res)
             continue
-        stats.by_source[src] = stats.by_source.get(src, 0) + len(res)
+        stats.by_source[adapter.name] = stats.by_source.get(adapter.name, 0) + len(res)
         for cand in res:
+            # Dedup by stable job_key when present, else by URL.
             dedup_key = cand.job_key or f"url::{cand.url}"
             existing = by_key.get(dedup_key)
             if existing is None:
@@ -105,14 +72,17 @@ async def _gather_candidates(user: User, now: datetime, stats: HuntStats) -> lis
 async def _fetch_content(cand: JobCandidate) -> str:
     if cand.content:
         return cand.content
-    if cand.source == JobSource.LINKEDIN.value:
-        return await linkedin.fetch_jd(cand)
-    if cand.source == JobSource.NAUKRI.value:
-        return await naukri.fetch_jd(cand)
-    return await jina.read(cand.url)
+    adapter = sources.by_name(cand.origin)
+    if adapter:
+        return await adapter.fetch_content(cand)
+    return ""
 
 
-async def run_hunt(user: User, progress: ProgressCb | None = None) -> HuntStats:
+async def run_hunt(
+    user: User,
+    progress: ProgressCb | None = None,
+    sources_override: list[str] | None = None,
+) -> HuntStats:
     async def say(msg: str) -> None:
         log.info("[hunt:%s] %s", user.id, msg)
         if progress:
@@ -122,15 +92,13 @@ async def run_hunt(user: User, progress: ProgressCb | None = None) -> HuntStats:
     today = now.strftime("%Y-%m-%d")
     stats = HuntStats()
 
-    srcs = [s for s, on in [("LinkedIn", settings.linkedin_enabled),
-                            ("Naukri", settings.naukri_enabled),
-                            ("Google/Jina", settings.jina_enabled)] if on]
-    await say(f"🔎 Searching {', '.join(srcs)} across your roles & cities…")
+    selected = sources.resolve(user, sources_override)
+    await say(f"🔎 Searching {', '.join(s.label for s in selected)} across your roles & cities…")
 
-    candidates = await _gather_candidates(user, now, stats)
+    candidates = await _gather_candidates(user, selected, stats)
     stats.candidates = len(candidates)
-    src_breakdown = ", ".join(f"{k}:{v}" for k, v in stats.by_source.items())
-    await say(f"📥 {len(candidates)} unique candidates ({src_breakdown}).")
+    breakdown = ", ".join(f"{k}:{v}" for k, v in stats.by_source.items()) or "none"
+    await say(f"📥 {len(candidates)} unique candidates ({breakdown}).")
 
     # Pre-filter: drop board jobs we've already shown this user, before any spend.
     fresh: list[JobCandidate] = []

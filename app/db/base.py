@@ -34,6 +34,16 @@ async def init_models() -> None:
     """Create tables if they don't exist. Called once on bot startup."""
     # Import models so they're registered on Base.metadata before create_all.
     from app.db import models  # noqa: F401
+    from sqlalchemy import text
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Lightweight additive migrations (create_all won't ALTER existing tables).
+        # Postgres-only; on a fresh DB the column already exists via create_all.
+        if conn.dialect.name == "postgresql":
+            await conn.execute(
+                text(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                    "enabled_sources json DEFAULT '[]'::json"
+                )
+            )

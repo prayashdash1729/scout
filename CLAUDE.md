@@ -17,7 +17,7 @@ against the DB, and pushes new matches as Telegram approval cards
 app/__main__.py          → `python -m app` → starts the bot (Docker CMD)
 app/config.py            → Settings (Pydantic) loaded/validated from .env
 app/enums.py             → JobStatus, JobSource, ConvState
-app/schemas.py           → Pydantic: CVInsights, JobEvaluation (Gemini I/O), SearchHit
+app/schemas.py           → Pydantic: CVInsights, JobEvaluation (Gemini I/O), JobCandidate
 app/logging_conf.py      → logging setup
 
 app/db/base.py           → async engine + session (SQLAlchemy 2.0 + asyncpg), init_models()
@@ -30,6 +30,7 @@ app/services/fetch.py    → shared HTTP getter: direct → ScraperAPI fallback 
 app/services/linkedin.py → LinkedIn guest jobs API: search (filters+pagination) + JD fetch
 app/services/naukri.py   → Naukri source (DISABLED — anti-bot blocks all no-login paths)
 app/services/jina.py     → Google/Jina search (s.jina.ai) + read (r.jina.ai)
+app/services/sources.py  → SourceAdapter registry (linkedin/naukri/jina); resolve(user) selection
 app/services/scorer.py   → score a page vs CV → JobEvaluation
 app/services/hunt.py     → multi-source orchestration: gather→dedup→fetch JD→score→persist
 
@@ -37,7 +38,8 @@ app/bot/app.py           → builds Application, registers handlers, run_polling
 app/bot/access.py        → allowlist gate (ALLOWED_TELEGRAM_IDS)
 app/bot/onboarding.py    → /start ConversationHandler (name→CV→roles→cities→exp)
 app/bot/profile.py       → /me, /setroles, /setcities, /setexp, /setname, /editcv, /help
-app/bot/hunt_cmd.py      → /hunt (rate-limited, sends approval cards)
+app/bot/hunt_cmd.py      → /hunt (rate-limited; optional one-off source override `/hunt linkedin`)
+app/bot/sources_cmd.py   → /sources (per-user source selection via toggle buttons)
 app/bot/approval.py      → Persist/Discard inline-button callbacks
 app/bot/keyboards.py     → inline keyboards + callback_data tokens
 app/bot/texts.py         → user-facing message templates
@@ -57,6 +59,8 @@ Dockerfile, docker-compose.yml → bot + Postgres (named volume `pgdata`), local
 - [x] `/hunt`: Jina search → Jina reader → Gemini scoring → dedup → approval cards
 - [x] Persist/Discard approval loop updates job status (so jobs aren't re-shown)
 - [x] Access allowlist + per-user hunt cooldown/daily-cap + per-hunt link ceiling
+- [x] Pluggable source registry (`services/sources.py`); per-user selection via
+      `/sources` (User.enabled_sources) + one-off `/hunt <names>` override
 - [x] Docker Compose (bot + Postgres with persistent volume)
 - [ ] Auto-apply (Playwright) — future
 - [ ] LinkedIn outreach drafting — future

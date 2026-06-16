@@ -12,6 +12,8 @@ HELP = (
     "/start – onboard or review your profile\n"
     "/me – show your saved profile\n"
     "/hunt – search, score &amp; surface new matching jobs\n"
+    "      (one-off: <code>/hunt linkedin</code> to use just one source)\n"
+    "/sources – choose which job sources your hunts use\n"
     "/setname &lt;name&gt;\n"
     "/setroles role1, role2, …\n"
     "/setcities city1, city2, …\n"

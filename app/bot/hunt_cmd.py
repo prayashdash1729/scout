@@ -16,6 +16,7 @@ from app.bot.access import require_access
 from app.bot.keyboards import approval_keyboard
 from app.db import repo
 from app.services import hunt as hunt_service
+from app.services import sources
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +36,20 @@ async def hunt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("⏳ A hunt is already running. Hang tight.")
         return
 
+    # Optional one-off source override: `/hunt linkedin jina`.
+    override: list[str] | None = None
+    if context.args:
+        avail = {s.name for s in sources.available()}
+        requested = [a.strip().lower() for a in context.args]
+        bad = [a for a in requested if a not in avail]
+        if bad:
+            await update.message.reply_text(
+                f"Unknown source(s): {', '.join(bad)}.\n"
+                f"Available: {', '.join(sorted(avail))}. Manage defaults with /sources."
+            )
+            return
+        override = requested
+
     ok, why = repo.hunt_gate(user)
     if not ok:
         await update.message.reply_text(f"🚦 {why}")
@@ -52,7 +67,9 @@ async def hunt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             pass  # ignore "message is not modified"
 
     try:
-        stats = await hunt_service.run_hunt(user, progress=progress)
+        stats = await hunt_service.run_hunt(
+            user, progress=progress, sources_override=override
+        )
     except Exception as e:  # noqa: BLE001
         log.exception("hunt failed for %s", tg.id)
         await update.message.reply_text(f"❌ Hunt failed: {e}")

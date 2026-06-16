@@ -16,7 +16,7 @@ import logging
 from telegram import BotCommand, Update
 from telegram.ext import Application, ContextTypes
 
-from app.bot import approval, hunt_cmd, onboarding, profile
+from app.bot import approval, hunt_cmd, onboarding, profile, sources_cmd
 from app.config import settings
 from app.db.base import init_models
 from app.logging_conf import setup_logging
@@ -26,6 +26,7 @@ log = logging.getLogger(__name__)
 _COMMANDS = [
     BotCommand("start", "Onboard or review your profile"),
     BotCommand("hunt", "Search & surface new matching jobs"),
+    BotCommand("sources", "Choose which job sources to hunt"),
     BotCommand("me", "Show your saved profile"),
     BotCommand("setroles", "Set target roles"),
     BotCommand("setcities", "Set target cities"),
@@ -61,7 +62,9 @@ def build_application() -> Application:
     profile.register(application)
     # 3. /hunt
     hunt_cmd.register(application)
-    # 4. Approval buttons
+    # 4. /sources selection + toggle callbacks
+    sources_cmd.register(application)
+    # 5. Approval buttons
     approval.register(application)
 
     application.add_error_handler(_on_error)

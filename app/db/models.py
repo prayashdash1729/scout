@@ -36,6 +36,8 @@ class User(Base):
     target_roles: Mapped[list] = mapped_column(JSON, default=list)
     target_cities: Mapped[list] = mapped_column(JSON, default=list)
     experience_years: Mapped[int] = mapped_column(Integer, default=0)
+    # Source-registry names this user hunts with. Empty = all available sources.
+    enabled_sources: Mapped[list] = mapped_column(JSON, default=list)
 
     # Rate-limit bookkeeping (persisted so limits survive restarts).
     last_hunt_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

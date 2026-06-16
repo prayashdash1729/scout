@@ -73,6 +73,18 @@ async def save_profile(
         return user
 
 
+async def set_enabled_sources(user_id: int, names: list[str]) -> User | None:
+    """Persist the user's source selection ([] = all available sources)."""
+    async with Session() as s:
+        user = await s.get(User, user_id)
+        if user is None:
+            return None
+        user.enabled_sources = names
+        await s.commit()
+        await s.refresh(user)
+        return user
+
+
 # ── Rate limiting ───────────────────────────────────────────────────────────
 def hunt_gate(user: User) -> tuple[bool, str]:
     """Pure check (no DB write): may this user hunt right now?"""

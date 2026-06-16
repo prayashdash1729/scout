@@ -87,7 +87,8 @@ class JobCandidate(BaseModel):
     source already has it; otherwise it's fetched lazily before scoring.
     """
 
-    source: str = "other"
+    source: str = "other"      # display board (linkedin/naukri/wellfound/…) for storage
+    origin: str = ""           # registry adapter that produced it (for JD-fetch dispatch)
     url: str
     job_key: Optional[str] = None
     title: str = ""
