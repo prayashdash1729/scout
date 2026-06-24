@@ -1,14 +1,63 @@
+
+<!-- PROJECT LOGO -->
 <a id="readme-top"></a>
+<br />
+<div align="center">
+  <a href="https://github.com/prayashdash1729/scout">
+    <img src="assets/readme_images/bot_logo.png" alt="Logo" width="130" height="130">
+  </a>
 
-# Scout
+  <h3 align="center">Scout</h3>
 
-A Telegram bot that hunts jobs for you. Upload your CV once; on `/hunt` it
-searches job boards, scores each posting against your CV with Gemini, and sends
-new matches as **Persist / Discard** cards. Multi-user, runs in Docker.
+  <p align="center">
+    A <a href="https://t.me/scoutai_jobs_bot">Telegram Bot</a> that hunts jobs for you. Upload your CV once; on /hunt it searches job boards, scores each posting against your CV with Gemini, and sends new matches as Persist / Discard cards. Multi-user, runs in Docker.
+    <br />
+    <br />
+    <a href="https://github.com/prayashdash1729/scout/issues">Report Bug</a>
+    ·
+    <a href="https://github.com/prayashdash1729/scout/issues">Request Feature</a>
+  </p>
+</div>
+
+
+<!-- TABLE OF CONTENTS -->
+<details open>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+    </li>
+    <li>
+      <a href="#using-the-bot">Using the bot</a>
+    </li>
+    <li>
+      <a href="#self-hosting">Self-hosting</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+      </ul>
+      <ul>
+        <li><a href="#run">Run</a></li>
+      </ul>
+    </li>
+    <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#job-sources">Job sources</a></li>
+    <li><a href="#built-with">Built With</a></li>
+    <li><a href="#security">Security</a></li>
+  </ol>
+</details>
+
+
+
+## About The Project
 
 ```
 Telegram ⇄ bot → LinkedIn / Google(Jina) → Gemini scoring → Postgres
 ```
+
+<div align="center">
+<!-- [![Product Name Screen Shot][assets/readme_images/jobs_in_chat.png]](https://github.com/prayashdash1729/scout) -->
+<img src="assets/readme_images/jobs_in_chat.jpeg" alt="Logo" width=400>
+</div>
 
 ---
 
@@ -110,8 +159,7 @@ Architecture details: see [`CLAUDE.md`](CLAUDE.md).
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Security
-Secrets live only in `.env` and are never committed. Lock the bot to yourself
-with `ALLOWED_TELEGRAM_IDS`. Scraping job boards may conflict with their ToS —
+Lock the bot to yourself with `ALLOWED_TELEGRAM_IDS` in `.env`. Scraping job boards may conflict with their ToS —
 use responsibly, never with a logged-in account.
 
 <!-- MARKDOWN LINKS & IMAGES -->
@@ -129,3 +177,4 @@ use responsibly, never with a logged-in account.
 [Postgres-url]: https://www.postgresql.org
 [Docker]: https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white
 [Docker-url]: https://www.docker.com
+[project-screenshot]: assets/readme_images/jobs_in_chat.png
